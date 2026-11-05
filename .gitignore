@@ -1,0 +1,19 @@
+# build output
+build/
+build-make/
+build-*/
+out/
+dist/
+*.o
+*.so
+*.ppm
+/app/fmiq-app
+/app/fft_test
+/app/waterfall_test
+/app/tune_hold_test
+/app/review_test
+/gui/furimodem-sdr
+/gui/parse_test
+/gui/privileges_test
+/tools/sdr-load
+/tools/iqmode

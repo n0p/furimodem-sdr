@@ -1,0 +1,327 @@
+--- a/app/src/main.cpp
++++ b/app/src/main.cpp
+@@ -2,8 +2,10 @@
+ // OpenGL ES 3. The source can be synthetic, a file or the device; the whole pipeline
+ // (acquisition -> SPSC queue -> FFT -> row) is the definitive one.
+ #include "pipeline.hpp"
++#include "capture_state.hpp"
+ #include "render_egl.hpp"
+ #include "render_gl.hpp"
++#include "ring_state.hpp"
+ #include "source.hpp"
+ #include "tune_hold.hpp"
+ #include "waterfall.hpp"
+@@ -291,6 +293,9 @@
+     int fps = 0;
+     double fft_ms = 0;
+     std::uint64_t dropped = 0;
++    // Age and kind of the capture the picture comes from, instead of the old counter of dropped
++    // blocks: it tells a live receiver from a repeated capture and from a stopped stream.
++    CaptureState capture;
+     const char* source = "SYNTHETIC";
+     int fb_w = 0, fb_h = 0;
+     // Notices drawn under the status bar: a source that fails to open or stays silent, and a
+@@ -311,14 +316,15 @@
+ Layout makeLayout(int W, int H, bool has_notice = false, bool has_tune_notice = false) {
+     Layout l;
+     const float m = 12.0f;
+-    const float status_h = 26.0f;
+-    const float hint_h = 18.0f;
+-    // One 30 px band per notice, two wrapped lines each: the reason a control did nothing must
+-    // not be cut off (the window is the only place it is said).
+-    const float notice_h = (has_notice ? 30.0f : 0.0f) + (has_tune_notice ? 30.0f : 0.0f);
+-    float panel_h = 246.0f;
+-    if (H < 620) panel_h = 228.0f;
+-    const float spec_h = std::max(80.0f, std::min(170.0f, H * 0.19f));
++    // Readability on the phone (480x1025, hands dirty in a workshop): the 5x7 font is drawn at
++    // scale 2 (14 logical px) everywhere and every control is at least 44 px tall. The status bar
++    // uses two rows so the source and the age of the capture are large too.
++    const float status_h = 44.0f;
++    const float hint_h = 26.0f;
++    // One band per notice, two wrapped lines at scale 2 (2x17 px).
++    const float notice_h = (has_notice ? 42.0f : 0.0f) + (has_tune_notice ? 42.0f : 0.0f);
++    const float panel_h = 290.0f;
++    const float spec_h = std::max(90.0f, std::min(180.0f, H * 0.19f));
+     const float panel_top = float(H) - panel_h - hint_h;
+     l.status = {0, 0, float(W), status_h};
+     l.notice = {0, status_h, float(W), notice_h};
+@@ -327,26 +333,27 @@
+                    std::max(40.0f, panel_top - 8 - (l.spectrum.y + l.spectrum.h + 8))};
+     l.panel = {0, panel_top, float(W), panel_h};
+     l.hint = {0, float(H) - hint_h, float(W), hint_h};
+-    l.readout_y = panel_top + 6;
++    l.readout_y = panel_top + 4;
+     l.freq_btn_y = panel_top + 34;
+-    l.band_label_y = panel_top + 78;
+-    l.band_btn_y = panel_top + 92;
+-    l.bw_label_y = panel_top + 128;
+-    l.bw_btn_y = panel_top + 142;
+-    l.gain_label_y = panel_top + 178;
+-    l.gain_btn_y = panel_top + 192;
++    l.band_label_y = panel_top + 86;
++    l.band_btn_y = panel_top + 102;
++    l.bw_label_y = panel_top + 152;
++    l.bw_btn_y = panel_top + 168;
++    l.gain_label_y = panel_top + 218;
++    l.gain_btn_y = panel_top + 234;
+     return l;
+ }
+ 
+ // Splits a notice into lines that fit the screen width. Without this, a long device error runs
+ // off the window exactly when it is most needed.
+-std::vector<std::string> wrapLines(Painter& p, const std::string& s, float maxw, std::size_t max_lines) {
++std::vector<std::string> wrapLines(Painter& p, const std::string& s, float maxw, std::size_t max_lines,
++                                   float scale = 1.0f) {
+     std::vector<std::string> out;
+     std::string line, word;
+     auto flush = [&] {
+         if (word.empty()) return;
+         const std::string cand = line.empty() ? word : line + " " + word;
+-        if (line.empty() || p.textWidth(cand.c_str(), 1.0f) <= maxw) {
++        if (line.empty() || p.textWidth(cand.c_str(), scale) <= maxw) {
+             line = cand;
+         } else {
+             out.push_back(line);
+@@ -363,7 +370,7 @@
+     if (out.size() > max_lines) {
+         out.resize(max_lines);
+         std::string& last = out.back();
+-        while (!last.empty() && p.textWidth((last + "...").c_str(), 1.0f) > maxw) last.pop_back();
++        while (!last.empty() && p.textWidth((last + "...").c_str(), scale) > maxw) last.pop_back();
+         last += "...";
+     }
+     return out;
+@@ -404,10 +411,16 @@
+     p.rect({0, l.status.h - 1, float(W), 1}, edge);
+ 
+     char buf[128];
+-    p.text(12, 7, (W < 350 ? 1.0f : 2.0f), accent, "FURIMODEM-IQ");
+-    std::snprintf(buf, sizeof(buf), "%s %dFPS FFT %.0fUS D%llu", m.source, m.fps, m.fft_ms * 1000.0,
+-                  static_cast<unsigned long long>(m.dropped));
+-    p.textRight(float(W) - 12, 9, 1, dim, buf);
++    p.text(12, 5, (W < 350 ? 1.0f : 2.0f), accent, "FURIMODEM-IQ");
++    p.textRight(float(W) - 12, 5, (W < 350 ? 1.0f : 2.0f), dim, m.source);
++    // Age of the last real capture, where the "D" counter used to be: green while the receiver is
++    // publishing, amber when the last capture is being repeated, red when nothing arrives.
++    const Color cap_col = m.capture.kind == CaptureKind::Repeated ? hex(0xffc46b)
++                          : m.capture.kind == CaptureKind::Stopped ? hex(0xff7a6b)
++                                                                   : hex(0x8ff2e6);
++    p.text(12, 24, 2, cap_col, capture_label(m.capture).c_str());
++    std::snprintf(buf, sizeof(buf), "%dFPS %.0fUS", m.fps, m.fft_ms * 1000.0);
++    p.textRight(float(W) - 12, 24, 2, dim, buf);
+ 
+     // Notices: the app says in the window itself why there is no device, why no samples are
+     // arriving or why a control cannot move the receiver. It is the only thing visible when
+@@ -422,10 +435,10 @@
+         const std::string* texts[2] = {&m.notice, &m.tune_notice};
+         for (const std::string* text : texts) {
+             if (text->empty()) continue;
+-            const auto lines = wrapLines(p, *text, float(W) - 20.0f, 2);
++            const auto lines = wrapLines(p, *text, float(W) - 20.0f, 2, 2.0f);
+             for (std::size_t i = 0; i < lines.size(); ++i)
+-                p.textCentered(float(W) * 0.5f, ny + 11.0f * float(i), 1, amber_fg, lines[i].c_str());
+-            ny += 30.0f;
++                p.textCentered(float(W) * 0.5f, ny + 17.0f * float(i), 2, amber_fg, lines[i].c_str());
++            ny += 42.0f;
+         }
+     }
+ 
+@@ -442,7 +455,7 @@
+         const float y = ymap(db);
+         p.rect({l.spectrum.x + 1, y, l.spectrum.w - 2, 1}, hex(0x17273d));
+         std::snprintf(buf, sizeof(buf), "%d", int(db));
+-        p.text(l.spectrum.x + 4, y - 8, 1, dim, buf);
++        p.text(l.spectrum.x + 6, y - 16, 2, dim, buf);
+     }
+     p.rect({l.spectrum.x + l.spectrum.w * 0.5f - 0.5f, l.spectrum.y + 1, 1, l.spectrum.h - 2},
+            hex(0x1d3550));
+@@ -450,9 +463,9 @@
+ 
+     // Frequency labels at the ends of the span.
+     std::snprintf(buf, sizeof(buf), "%.2f", (pr.center_hz - pr.sample_rate * 0.5) / 1e6);
+-    p.text(l.spectrum.x + 4, l.spectrum.y + l.spectrum.h - 10, 1, dim, buf);
++    p.text(l.spectrum.x + 6, l.spectrum.y + l.spectrum.h - 20, 2, dim, buf);
+     std::snprintf(buf, sizeof(buf), "%.2f", (pr.center_hz + pr.sample_rate * 0.5) / 1e6);
+-    p.textRight(l.spectrum.x + l.spectrum.w - 4, l.spectrum.y + l.spectrum.h - 10, 1, dim, buf);
++    p.textRight(l.spectrum.x + l.spectrum.w - 6, l.spectrum.y + l.spectrum.h - 20, 2, dim, buf);
+ 
+     // Waterfall
+     p.drawWaterfall(l.waterfall);
+@@ -471,36 +484,36 @@
+     const char* flabels[4] = {"-1M", "-100K", "+100K", "+1M"};
+     const int fids[4] = {ACT_FREQ_M1, ACT_FREQ_K100_DN, ACT_FREQ_K100_UP, ACT_FREQ_P1};
+     for (int i = 0; i < 4; ++i)
+-        drawButton(p, st, {m2 + i * (bw4 + gap), l.freq_btn_y, bw4, 36}, fids[i], flabels[i], false);
++        drawButton(p, st, {m2 + i * (bw4 + gap), l.freq_btn_y, bw4, 46}, fids[i], flabels[i], false);
+ 
+-    p.text(m2, l.band_label_y, 1, dim, "BAND");
++    p.text(m2, l.band_label_y, 2, dim, "BAND");
+     std::snprintf(buf, sizeof(buf), "%.0f-%.0f MHZ", kBands[std::max(0, std::min(pr.band, kBandCount - 1))].lo_hz / 1e6,
+                   kBands[std::max(0, std::min(pr.band, kBandCount - 1))].hi_hz / 1e6);
+-    p.textRight(float(W) - m2, l.band_label_y, 1, accent, buf);
++    p.textRight(float(W) - m2, l.band_label_y, 2, accent, buf);
+     const float bwb = (float(W) - 2 * m2 - (kBandCount - 1) * 5.0f) / kBandCount;
+     for (int i = 0; i < kBandCount; ++i)
+-        drawButton(p, st, {m2 + i * (bwb + 5), l.band_btn_y, bwb, 30}, ACT_BAND0 + i, kBands[i].name,
++        drawButton(p, st, {m2 + i * (bwb + 5), l.band_btn_y, bwb, 44}, ACT_BAND0 + i, kBands[i].name,
+                    pr.band == i);
+ 
+-    p.text(m2, l.bw_label_y, 1, dim, "BW  MS/S");
++    p.text(m2, l.bw_label_y, 2, dim, "BW  MS/S");
+     std::snprintf(buf, sizeof(buf), "%.2f", pr.sample_rate / 1e6);
+-    p.textRight(float(W) - m2, l.bw_label_y, 1, accent, buf);
++    p.textRight(float(W) - m2, l.bw_label_y, 2, accent, buf);
+     const float rw = (float(W) - 2 * m2 - (kSampleRateCount - 1) * gap) / kSampleRateCount;
+     for (int i = 0; i < kSampleRateCount; ++i) {
+         std::snprintf(buf, sizeof(buf), "%.2f", kSampleRates[i] / 1e6);
+         const bool sel = std::fabs(pr.sample_rate - kSampleRates[i]) < 1.0;
+-        drawButton(p, st, {m2 + i * (rw + gap), l.bw_btn_y, rw, 30}, ACT_RATE0 + i, buf, sel);
++        drawButton(p, st, {m2 + i * (rw + gap), l.bw_btn_y, rw, 44}, ACT_RATE0 + i, buf, sel);
+     }
+ 
+-    p.text(m2, l.gain_label_y, 1, dim, "GAIN");
+-    const float gside = 56.0f;
+-    drawButton(p, st, {m2, l.gain_btn_y, gside, 30}, ACT_GAIN_DN, "-", false);
++    p.text(m2, l.gain_label_y, 2, dim, "GAIN");
++    const float gside = 76.0f;
++    drawButton(p, st, {m2, l.gain_btn_y, gside, 44}, ACT_GAIN_DN, "-", false);
+     std::snprintf(buf, sizeof(buf), "%d DB", int(std::lround(pr.gain_db)));
+-    drawButton(p, st, {m2 + gside + gap, l.gain_btn_y, float(W) - 2 * m2 - 2 * (gside + gap), 30}, ACT_NONE,
++    drawButton(p, st, {m2 + gside + gap, l.gain_btn_y, float(W) - 2 * m2 - 2 * (gside + gap), 44}, ACT_NONE,
+                buf, false);
+-    drawButton(p, st, {float(W) - m2 - gside, l.gain_btn_y, gside, 30}, ACT_GAIN_UP, "+", false);
++    drawButton(p, st, {float(W) - m2 - gside, l.gain_btn_y, gside, 44}, ACT_GAIN_UP, "+", false);
+ 
+-    p.textCentered(float(W) * 0.5f, l.hint.y + 3, 1, dim,
++    p.textCentered(float(W) * 0.5f, l.hint.y + 5, 2, dim,
+                    "TOUCH THE SPECTRUM TO TUNE");
+     p.end();
+ }
+@@ -724,8 +737,12 @@
+     auto fft = makeFft(o.fft);
+     fft->makeHann();
+     std::vector<cplx> block(o.fft), spec(o.fft);
+-    std::vector<float> db(o.fft), last_db(o.fft);
+-    std::vector<std::uint8_t> rgb(o.fft * 3);
++    std::vector<float> db(o.fft);
++    // The offscreen frame must show what the live pipeline builds: one column per waterfall pixel,
++    // MAX per group and the gain as a dB shift (the FFT thread does exactly this).
++    const std::size_t cols = std::size_t(std::max(64, o.width - 24));
++    std::vector<float> last_db(cols);
++    std::vector<std::uint8_t> rgb(cols * 3);
+     double fft_us = 0;
+     for (int frame = 0; frame < o.gpu_test; ++frame) {
+         const std::size_t n = src.read(block.data(), o.fft, 1000);
+@@ -738,12 +755,12 @@
+         const auto t0 = std::chrono::steady_clock::now();
+         fft->process(block.data(), spec.data(), true);
+         fft->magnitudesDbShifted(spec.data(), db.data());
++        apply_db_shift(db.data(), db.size(), params.get().gain_db - kGainReferenceDb);
++        reduce_max(db.data(), db.size(), last_db.data(), cols);
+         const auto t1 = std::chrono::steady_clock::now();
+         fft_us = std::chrono::duration<double, std::micro>(t1 - t0).count();
+-        for (std::size_t i = 0; i < db.size(); ++i)
+-            color_for_db(db[i], kDbMin, kDbMax, rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]);
+-        p.pushRow(rgb.data(), db.size());
+-        last_db = db;
++        color_row(last_db.data(), cols, kDbMin, kDbMax, rgb.data());
++        p.pushRow(rgb.data(), cols);
+     }
+ 
+     UiState ui;
+@@ -751,6 +768,7 @@
+     m.db = last_db.data();
+     m.bins = last_db.size();
+     m.fft_ms = fft_us / 1000.0;
++    m.capture = capture_state(true, true, 8123, 10.0, 9.98, 9.95);
+     m.source = "OFFSCREEN";
+     m.notice = o.notice;
+     m.tune_notice = o.notice2;
+@@ -810,6 +828,9 @@
+ 
+     Pipeline pipe(o.fft);
+     pipe.params().set(o.initial);
++    // One row column per waterfall pixel: the FFT thread reduces each row with MAX per group, so
++    // the texture is not minified 4.5:1 and a narrow carrier cannot fall between two texels.
++    pipe.setRowBins(std::size_t(std::max(64, win.width() - 24)));
+ 
+     UiState ui;
+     ui.db.resize(pipe.bins());
+@@ -828,6 +849,17 @@
+     SourcePick pick = pickSource(o, pipe.params());
+     if (!pick.src) return showFatal(painter, win, pipe.params().get(), pick.notice);
+     const std::string src_name = pick.src->name();
++    // State of the direct IQ ring, read once at start: "not mapped", "mapped without sweep" and
++    // "unknown block format" used to arrive as the same SOAPY_SDR_TIMEOUT.
++    const std::string ring_setting = pick.src->setting("rx_ring");
++    const RingState ring_state = ring_state_from_setting(ring_setting);
++    std::string ring_detail;
++    if (const auto colon = ring_setting.find(':'); colon != std::string::npos) {
++        ring_detail = ring_setting.substr(colon + 1);
++        while (!ring_detail.empty() && ring_detail.front() == ' ') ring_detail.erase(0, 1);
++    }
++    appLog("rx_ring: %s", ring_setting.empty() ? "(not reported)" : ring_setting.c_str());
++    if (!ring_detail.empty()) appLog("rx_ring detail: %s", ring_detail.c_str());
+     // Holds the values set from the controls until the source has had a chance to follow them.
+     TuneHold hold;
+     SourceMeta initial_meta;
+@@ -917,16 +949,21 @@
+         }
+         const auto s = pipe.stats();
+         // Device open but not a single row: the other way of staring at an empty screen with no
+-        // explanation. It is reported after three seconds.
++        // explanation. The reason comes from the ring state read at start, so "not mapped",
++        // "mapped without sweep" and "unknown format" no longer read the same.
+         if (!ui.have_db && src_name != "synthetic" &&
+-            std::chrono::duration<double>(now - t_start).count() > 3.0)
+-            ui.notice = "NO SAMPLES FROM THE DEVICE: THE RING IS NOT PUBLISHING";
++            std::chrono::duration<double>(now - t_start).count() > 3.0) {
++            const std::string ring_msg = ring_notice(ring_state);
++            ui.notice = ring_msg.empty() ? "NO SAMPLES FROM THE DEVICE: THE RING IS NOT PUBLISHING"
++                                        : ring_msg;
++        }
+         SceneModel m;
+         m.db = ui.have_db ? ui.db.data() : nullptr;
+         m.bins = ui.db.size();
+         m.fps = fps;
+         m.fft_ms = s.fft_us / 1000.0;
+         m.dropped = s.dropped_blocks + s.skipped_blocks + s.dropped_rows;
++        m.capture = pipe.captureState();
+         m.source = src_label.c_str();
+         m.notice = ui.notice;
+         m.tune_notice = ui.tune_notice;
+--- a/app/src/source.hpp
++++ b/app/src/source.hpp
+@@ -118,8 +118,8 @@
+         (void)out;
+         return false;
+     }
+-    // Read-only diagnostic setting of the module (for example "rx_ring", see ring_state.hpp).
+-    // Sources without a module answer with an empty string, which the app reads as "no report".
++    // Read-only diagnostic setting of the module (for example "rx_ring"). Sources without a
++    // module say nothing.
+     virtual std::string setting(const std::string& key) const {
+         (void)key;
+         return std::string();
+@@ -286,6 +286,7 @@
+     void stop() override;
+     std::size_t read(cplx* dst, std::size_t max, int timeout_ms) override;
+     bool meta(SourceMeta& out) const override;
++    std::string setting(const std::string& key) const override;
+ 
+ private:
+     struct Impl;
+--- a/app/src/source_device.cpp
++++ b/app/src/source_device.cpp
+@@ -174,4 +174,11 @@
+     return true;
+ }
+ 
++// Read-only. readSetting("rx_ring") reports whether the memory window is mapped and what is being
++// published on it; it never changes what the stream does.
++std::string DeviceSource::setting(const std::string& key) const {
++    if (!impl_ || !impl_->dev) return std::string();
++    return impl_->dev->readSetting(key);
++}
++
+ }  // namespace fmiq
