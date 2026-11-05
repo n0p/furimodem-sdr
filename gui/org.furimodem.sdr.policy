@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  polkit action for the SDR mode window.
+
+  The window runs /usr/bin/sdr-load through pkexec; pkexec finds this action
+  through the exec.path annotation below, so the dialogue names the phone and not
+  a generic "run a program as another user". Every operation of the tool goes
+  through the same action: loading the image, entering the mode, activating,
+  stopping and restoring to stock.
+
+  allow_active=auth_admin_keep asks for an administrator password the first time
+  and remembers it for a few minutes, which is what makes "enter the mode, then
+  start reception" one dialogue instead of two.
+-->
+<policyconfig>
+
+  <vendor>furimodem-sdr</vendor>
+  <vendor_url>https://github.com/n0p/furimodem-sdr</vendor_url>
+
+  <action id="org.furimodem.sdr.run">
+    <description>Load, activate and revert the modem SDR mode</description>
+    <message>Authentication is required to write the modem firmware partition, enter SDR mode or restore the phone</message>
+    <icon_name>furimodem-iq</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/sdr-load</annotate>
+  </action>
+
+</policyconfig>

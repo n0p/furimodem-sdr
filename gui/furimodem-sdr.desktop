@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SDR Mode
+Comment=Load, activate and revert the modem SDR mode
+Exec=furimodem-sdr
+Icon=furimodem-iq
+Terminal=false
+Categories=Utility;Network;
