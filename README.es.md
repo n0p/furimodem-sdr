@@ -20,6 +20,10 @@ revertirlo, y los datos se leen por SoapySDR desde una app con waterfall.
 | `tools/make-sdr-image.py` | construye la imagen del modo SDR desde **tu** imagen de stock; no se distribuye firmware |
 | `docs/SDR-IMAGE.es.md` | la imagen: sha256 de stock, el parche, carga, activación y vuelta atrás |
 
+Cada pieza tiene sus notas (en inglés): [driver](driver/README.md), [app](app/README.md),
+[gui](gui/README.md), [tools](tools/README.md); [DEMO.md](DEMO.md) es un guion de demo de cinco
+minutos.
+
 ## Puesta en marcha
 
 Todo se compila en el portátil: el teléfono no tiene cmake.
@@ -73,6 +77,11 @@ sudo sdr-load --image /home/furios/modem-E6.img         # imagen de stock otra v
 sudo systemctl reboot                                   # el bootloader la lee al arrancar
 ```
 
+> **Antes de ejecutar `--image`:** desactiva WiFi y Bluetooth con `rfkill` a propósito, *antes* de
+> escribir. Si tu SSH va por la WiFi del teléfono, la sesión se corta antes de la escritura: usa la
+> dirección USB/RNDIS o ejecútalo desde un terminal del teléfono. Un `--image` correcto sale con
+> **código 6** (imagen escrita y verificada, hace falta reiniciar); no es un fallo.
+
 ### Qué debe salir
 
 - `sudo sdr-load --status` muestra la imagen `sdr-8bit`, el modo activo y una línea `next` que no
@@ -81,7 +90,7 @@ sudo systemctl reboot                                   # el bootloader la lee a
   `variety=yes`: cada fila del waterfall es distinta, así que hay I/Q real moviéndose por el anillo.
 - La ventana (`fmiq-app`) pinta un waterfall que se mueve mientras el teléfono barre.
 
-Si no funciona: los códigos 5/13 de `--image` significan que la partición no tiene la imagen que la
+Si no funciona: el **código 6** después de `--image` es éxito (hace falta reiniciar); los códigos 5/13 de `--image` significan que la partición no tiene la imagen que la
 herramienta conoce (comprueba el sha256 de stock y vuelve a generarla); el código 8 significa que el
 módem aún no ha terminado de entrar en el modo (espera y reintenta; la herramienta sondea hasta 20
 s); un `md1` en `exception` se recupera escribiendo otra vez la imagen de stock y reiniciando. No

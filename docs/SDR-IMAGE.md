@@ -68,6 +68,10 @@ sudo sdr-load --resume                                  # after the boot: enters
 sudo sdr-load --status                                  # profile, ring and next step
 ```
 
+`--image` disables WiFi and Bluetooth with `rfkill` before writing and exits with **code 6** when
+the write succeeds (reboot needed). Do not run it over the phone's WiFi SSH connection; use the
+USB/RNDIS address or a terminal on the phone.
+
 `--resume` already runs the activation (for `sdr-8bit`, it launches the phone's scan). Running
 `--activate` afterwards is optional and only needed to launch another sweep.
 

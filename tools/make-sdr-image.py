@@ -18,9 +18,10 @@ Usage
     python3 tools/make-sdr-image.py /path/to/stock-modem.img -o modem-sdr-8bit.img
     python3 tools/make-sdr-image.py --check /path/to/stock-modem.img
 
-Then, on the phone::
+Then, on the phone (from the repository root)::
 
-    scp modem-sdr-8bit.img furios@<phone>:/home/furios/
+    scp modem-sdr-8bit.img tools/flash_modem.sh furios@<phone>:/home/furios/
+    scp /path/to/stock-modem.img furios@<phone>:/home/furios/modem-E6.img   # rescue copy
     sudo sdr-load --image /home/furios/modem-sdr-8bit.img     # writes and verifies; no reboot
     sudo systemctl reboot                                     # the bootloader reads it
     sudo sdr-load --resume                                    # enters and activates the mode
@@ -173,11 +174,13 @@ def main() -> int:
     print(f"SDR image   : {out} ({IMAGE_SIZE} bytes)")
     print(f"sha256      : {out_sha}  OK (profile {PROFILE})")
     print()
-    print("Next, on the phone:")
-    print(f"  scp {out} furios@<phone>:/home/furios/")
+    print("Next, on the phone (from the repository root):")
+    print(f"  scp {out} tools/flash_modem.sh furios@<phone>:/home/furios/")
+    print(f"  scp {args.stock} furios@<phone>:/home/furios/modem-E6.img   # rescue copy")
     print(f"  sudo sdr-load --image /home/furios/{out.name}   # writes it; no reboot")
     print("  sudo systemctl reboot                            # the bootloader reads it")
     print("  sudo sdr-load --resume                          # enters and activates the mode")
+    print("  # code 6 from --image is success (reboot needed); it disables WiFi/Bluetooth first")
     print("  # optional: sudo sdr-load --activate starts another sweep")
     return 0
 

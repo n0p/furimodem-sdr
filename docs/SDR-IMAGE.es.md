@@ -68,6 +68,10 @@ sudo sdr-load --resume                                  # tras el arranque: entr
 sudo sdr-load --status                                  # perfil, anillo y siguiente paso
 ```
 
+`--image` desactiva WiFi y Bluetooth con `rfkill` antes de escribir y sale con **código 6** cuando
+la escritura va bien (hace falta reiniciar). No lo ejecutes por SSH sobre la WiFi del teléfono: usa
+la dirección USB/RNDIS o un terminal en el propio teléfono.
+
 `--resume` ya ejecuta la activación (para `sdr-8bit`, lanza el barrido del teléfono). Ejecutar
 `--activate` después es opcional y solo hace falta para lanzar otro barrido.
 
@@ -88,5 +92,5 @@ sudo systemctl reboot
 ## Por qué no se distribuye la imagen
 
 La imagen deriva de firmware del fabricante que no es nuestro para redistribuirlo. Una receta de
-parche de 1,7 kB aplicada sobre la copia del usuario basta para reproducirla exactamente, y el par
+parche de 1,7 kB aplicada sobre la copia del usuario basta para reproducirla exactamente, y la pareja
 de sha256 hace verificable el resultado: entra la de stock, sale la `sdr-8bit`.

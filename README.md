@@ -20,6 +20,9 @@ SoapySDR from an app with a waterfall.
 | `tools/make-sdr-image.py` | builds the SDR-mode image from **your own** stock image; no firmware is distributed |
 | `docs/SDR-IMAGE.md` | the image: stock sha256, the patch, load, activation and revert |
 
+Each component has its own notes: [driver](driver/README.md), [app](app/README.md),
+[gui](gui/README.md), [tools](tools/README.md); [DEMO.md](DEMO.md) is a five-minute demo script.
+
 ## Getting started
 
 Everything is built on the laptop: the phone has no cmake.
@@ -73,6 +76,11 @@ sudo sdr-load --image /home/furios/modem-E6.img         # stock image again
 sudo systemctl reboot                                   # the bootloader reads it
 ```
 
+> **Before you run `--image`:** it disables WiFi and Bluetooth with `rfkill` on purpose, *before*
+> writing. If your SSH goes over the phone's WiFi, the session dies before the write: use the
+> USB/RNDIS address or run it from a terminal on the phone. A successful `--image` exits with
+> **code 6** (image written and verified, reboot needed); that is not a failure.
+
 ### What success looks like
 
 - `sudo sdr-load --status` reports the `sdr-8bit` image, the mode as active and a `next` line that
@@ -81,7 +89,7 @@ sudo systemctl reboot                                   # the bootloader reads i
   `variety=yes`: every waterfall row is different, so real I/Q is moving through the ring.
 - The window (`fmiq-app`) paints a waterfall that moves while the phone sweeps.
 
-If it does not work: code 5/13 from `--image` means the partition does not hold the image the tool
+If it does not work: **code 6** after `--image` is success (reboot needed); code 5/13 from `--image` means the partition does not hold the image the tool
 knows (check the stock sha256 and regenerate); code 8 means the modem has not finished entering the
 mode (wait and retry; the tool polls up to 20 s); `md1` in `exception` is recovered by writing the
 stock image again and rebooting. Never interrupt `AT+COPS=?`.
