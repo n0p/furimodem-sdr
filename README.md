@@ -36,8 +36,12 @@ Everything is built on the laptop: the phone has no cmake.
   and about 1 GB free for the build and the images.
 - **SoapySDR on the phone** (`SoapySDRUtil --info` must work); the module is installed in
   `/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8/` (adjust the path if your system uses another).
+- **Phone runtime for the window/app**: GTK3 and Wayland/EGL/GLES (FuriOS ships them; the exact
+  build headers are in `gui/README.md` and `app/README.md`).
 - **A stock modem image**: dumped from your own phone in step 3, before writing anything. It is
   your way back. This repository does not distribute firmware.
+- **Optional, for the local checks**: `cmake`, `g++`, `make` and `libsoapysdr-dev` (the phone
+  package itself is built in Docker; `app/README.md` lists the Wayland/EGL headers for the app).
 
 ```sh
 # 1. Cross-build the package for the phone (module, app, window, loader and ring tool)
@@ -66,6 +70,7 @@ scp modem-sdr-8bit.img tools/flash_modem.sh furios@<phone>:/home/furios/
 ssh furios@<phone> chmod +x /home/furios/flash_modem.sh
 
 # 4. SDR mode (run these on the phone: ssh furios@<phone>)
+#    --image turns WiFi/Bluetooth off FIRST: use USB/RNDIS SSH, not WiFi. Exit code 6 = success.
 sudo sdr-load --image /home/furios/modem-sdr-8bit.img   # writes and verifies; it does not reboot
 sudo systemctl reboot                                   # the bootloader reads the new image
 sudo sdr-load --resume                                  # after the boot: enters the mode and activates

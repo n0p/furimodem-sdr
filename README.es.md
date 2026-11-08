@@ -37,8 +37,13 @@ Todo se compila en el portátil: el teléfono no tiene cmake.
   `ssh`/`scp` y ~1 GB libre para la compilación y las imágenes.
 - **SoapySDR en el teléfono** (`SoapySDRUtil --info` debe funcionar); el módulo se instala en
   `/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8/` (ajusta la ruta si tu sistema usa otra).
+- **Runtime del teléfono para la ventana/app**: GTK3 y Wayland/EGL/GLES (FuriOS los trae; las
+  cabeceras exactas de compilación están en `gui/README.md` y `app/README.md`).
 - **Una imagen de stock del módem**: se vuelca de tu propio teléfono en el paso 3, antes de
   escribir nada. Es tu camino de vuelta. Este repositorio no distribuye firmware.
+- **Opcional, para las comprobaciones locales**: `cmake`, `g++`, `make` y `libsoapysdr-dev` (el
+  paquete del teléfono se compila en Docker; `app/README.md` lista las cabeceras Wayland/EGL de la
+  app).
 
 ```sh
 # 1. compilación cruzada del paquete para el teléfono (módulo, app, ventana, cargador y anillo)
@@ -67,6 +72,7 @@ scp modem-sdr-8bit.img tools/flash_modem.sh furios@<movil>:/home/furios/
 ssh furios@<movil> chmod +x /home/furios/flash_modem.sh
 
 # 4. modo SDR (ejecuta esto en el movil: ssh furios@<movil>)
+#    --image apaga WiFi/Bluetooth PRIMERO: usa SSH por USB/RNDIS, no por WiFi. Código 6 = éxito.
 sudo sdr-load --image /home/furios/modem-sdr-8bit.img   # escribe y verifica; no reinicia
 sudo systemctl reboot                                   # el bootloader lee la imagen nueva
 sudo sdr-load --resume                                  # tras el arranque: entra y activa
