@@ -1,0 +1,323 @@
+/* Dark theme of the SDR mode window.
+ *
+ * It is embedded in the binary at build time (see the Makefile) and loaded at USER
+ * priority, above the theme of the session: the window keeps these colours with a
+ * light desktop and with a dark one. No image, no animation and no font of the
+ * system beyond the default ones: only colours, radii and spacing.
+ *
+ * Palette: one near-black background, two surfaces, and a light text. Every pair
+ * below stays well over a 7:1 contrast ratio.
+ */
+
+@define-color fmiq_bg       #15171c;
+@define-color fmiq_surface  #1b1e25;
+@define-color fmiq_surface2 #242833;
+@define-color fmiq_hover    #2d323f;
+@define-color fmiq_fg       #e9ecf1;
+@define-color fmiq_fg_dim   #aab2c0;
+@define-color fmiq_border   #333946;
+@define-color fmiq_accent   #5aa2ff;
+@define-color fmiq_ok       #48c97a;
+@define-color fmiq_error    #ff6b6b;
+
+window,
+.background {
+    background-color: @fmiq_bg;
+    color: @fmiq_fg;
+}
+
+/* --- title bar: same surface as the window, one hairline underneath --- */
+
+headerbar {
+    background-color: @fmiq_surface;
+    background-image: none;
+    border-bottom: 1px solid @fmiq_border;
+    box-shadow: none;
+    color: @fmiq_fg;
+    min-height: 44px;
+}
+
+headerbar .title {
+    color: @fmiq_fg;
+    font-weight: bold;
+}
+
+headerbar .subtitle {
+    color: @fmiq_fg_dim;
+}
+
+headerbar button {
+    background: none;
+    background-image: none;
+    border: 1px solid transparent;
+    box-shadow: none;
+    color: @fmiq_fg;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+}
+
+headerbar button:hover {
+    background-color: @fmiq_surface2;
+    border-color: @fmiq_border;
+}
+
+/* --- the two tabs --- */
+
+stackswitcher {
+    background-color: @fmiq_surface;
+    border: 1px solid @fmiq_border;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+stackswitcher button {
+    background: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    color: @fmiq_fg_dim;
+    padding: 4px 16px;
+    border-radius: 6px;
+    text-shadow: none;
+}
+
+stackswitcher button:hover {
+    background-color: @fmiq_surface2;
+    color: @fmiq_fg;
+}
+
+stackswitcher button:checked {
+    background-color: @fmiq_surface2;
+    color: @fmiq_fg;
+}
+
+/* --- buttons --- */
+
+button {
+    background-color: @fmiq_surface2;
+    background-image: none;
+    border: 1px solid @fmiq_border;
+    border-radius: 8px;
+    box-shadow: none;
+    color: @fmiq_fg;
+    padding: 6px 10px;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+}
+
+button:hover {
+    background-color: @fmiq_hover;
+    border-color: #3f4656;
+}
+
+button:active,
+button:checked {
+    background-color: #383f4d;
+}
+
+button:backdrop {
+    color: @fmiq_fg_dim;
+}
+
+button:disabled {
+    background-color: #1a1d23;
+    border-color: #262a32;
+    color: #6c7484;
+}
+
+button.destructive-action {
+    background-color: #5f2024;
+    border-color: #9b2f34;
+    color: #ffdede;
+}
+
+button.destructive-action:hover {
+    background-color: #76262b;
+}
+
+/* --- boxes, frames and separators: the section titles sit on the frame line --- */
+
+frame {
+    border: none;
+}
+
+frame > border {
+    border: 1px solid @fmiq_border;
+    border-radius: 9px;
+}
+
+frame > label {
+    color: @fmiq_fg_dim;
+    font-weight: bold;
+    padding: 0 4px;
+}
+
+separator {
+    background-color: @fmiq_border;
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* --- text --- */
+
+label {
+    color: @fmiq_fg;
+}
+
+label.dim,
+.dim {
+    color: @fmiq_fg_dim;
+}
+
+.headline {
+    font-weight: bold;
+}
+
+.legend {
+    color: @fmiq_fg_dim;
+}
+
+.cmd {
+    background-color: #101319;
+    border: 1px solid @fmiq_border;
+    border-radius: 6px;
+    color: #d9e0ea;
+    font-family: monospace;
+    padding: 6px 8px;
+}
+
+/* --- the tool log --- */
+
+textview,
+textview text {
+    background-color: #101319;
+    color: #dde3ec;
+}
+
+textview border {
+    background-color: #101319;
+}
+
+textview text selection {
+    background-color: alpha(@fmiq_accent, 0.38);
+    color: @fmiq_fg;
+}
+
+textview.mono {
+    font-family: monospace;
+}
+
+scrolledwindow,
+scrolledwindow viewport {
+    background-color: transparent;
+}
+
+scrollbar {
+    background-color: transparent;
+    border: none;
+}
+
+scrollbar slider {
+    background-color: #3d4453;
+    border-radius: 6px;
+    margin: 2px;
+    min-width: 6px;
+    min-height: 6px;
+}
+
+scrollbar slider:hover {
+    background-color: #4b5365;
+}
+
+/* --- progress --- */
+
+progressbar trough {
+    background-color: @fmiq_surface2;
+    border: 1px solid @fmiq_border;
+    border-radius: 6px;
+    min-height: 8px;
+}
+
+progressbar progress {
+    background-color: @fmiq_accent;
+    background-image: none;
+    border: none;
+    border-radius: 6px;
+    min-height: 8px;
+}
+
+/* --- result banner --- */
+
+.banner-ok {
+    background-color: alpha(@fmiq_ok, 0.14);
+    border-left: 3px solid @fmiq_ok;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+.banner-error {
+    background-color: alpha(@fmiq_error, 0.14);
+    border-left: 3px solid @fmiq_error;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+.banner-info {
+    background-color: alpha(@fmiq_accent, 0.13);
+    border-left: 3px solid @fmiq_accent;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+/* --- guide: the next step, always on top --- */
+
+.guide {
+    background-color: @fmiq_surface;
+    border: 1px solid @fmiq_border;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.guide-title {
+    color: @fmiq_fg;
+    font-weight: bold;
+    font-size: 1.05em;
+}
+
+/* --- entries, lists and the file chooser, which are separate windows --- */
+
+entry {
+    background-color: @fmiq_surface2;
+    border: 1px solid @fmiq_border;
+    border-radius: 6px;
+    color: @fmiq_fg;
+}
+
+entry:focus {
+    border-color: @fmiq_accent;
+}
+
+treeview.view,
+list {
+    background-color: @fmiq_bg;
+    color: @fmiq_fg;
+}
+
+treeview.view:selected,
+list row:selected {
+    background-color: alpha(@fmiq_accent, 0.34);
+    color: @fmiq_fg;
+}
+
+placessidebar,
+placessidebar list {
+    background-color: @fmiq_surface;
+    color: @fmiq_fg;
+}
+
+tooltip,
+tooltip.background {
+    background-color: @fmiq_surface2;
+    border: 1px solid @fmiq_border;
+    color: @fmiq_fg;
+}

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Furimodem IQ (capture)
+Comment=Waterfall of a capture saved at /var/lib/furimodem-iq/captura.iq
+Exec=fmiq-app --source file --file /var/lib/furimodem-iq/captura.iq --size 360x800
+TryExec=fmiq-app
+Icon=furimodem-iq
+Terminal=false
+Categories=Utility;Network;
+Keywords=IQ;SDR;capture;waterfall;
+StartupWMClass=fmiq-app

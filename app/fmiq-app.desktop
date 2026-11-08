@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Furimodem IQ
+Comment=Device IQ receiver: real-time spectrum and waterfall
+# Exec does not go through a shell: no ~, variables or wildcards. The bare name is resolved
+# through PATH (the install prefix's bin is on it), so the same file works with any prefix.
+# --source auto: device if present; otherwise a synthetic signal and the reason is shown in the
+# window.
+Exec=fmiq-app --source auto --device-args repeat_last=1 --size 360x800
+TryExec=fmiq-app
+Icon=furimodem-iq
+Terminal=false
+Categories=Utility;Network;
+Keywords=IQ;SDR;spectrum;waterfall;furimodem;
+# Must match the app's xdg_toplevel_set_app_id().
+StartupWMClass=fmiq-app
