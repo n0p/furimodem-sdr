@@ -1,5 +1,7 @@
 # furimodem IQ — SDR mode on the phone's modem
 
+[Castellano](README.es.md)
+
 Turns the FuriPhone modem into an **IQ receiver** without a cell: the receiver is enabled with a
 **binary patch** applied by a dedicated tool that knows how to revert it, and the data is read over
 SoapySDR from an app with a waterfall.
@@ -22,6 +24,18 @@ SoapySDR from an app with a waterfall.
 
 Everything is built on the laptop: the phone has no cmake.
 
+### What you need
+
+- **Phone**: a Furi Labs FLX1 running FuriOS (Debian sid/aarch64) with the **E6 modem firmware**,
+  SSH enabled and access as `furios`, `sudo`, and **ofono running** (the sweep is triggered through
+  `busctl`/`org.ofono`). Another firmware version is refused by the image check below.
+- **Laptop**: `docker` (the cross-build pulls `debian:sid`), `python3`, `sha256sum`, `ssh`/`scp`
+  and about 1 GB free for the build and the images.
+- **SoapySDR on the phone** (`SoapySDRUtil --info` must work); the module is installed in
+  `/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8/` (adjust the path if your system uses another).
+- **A stock modem image**: dumped from your own phone in step 3, before writing anything. It is
+  your way back. This repository does not distribute firmware.
+
 ```sh
 # 1. Cross-build the package for the phone (module, app, window, loader and ring tool)
 docker run --rm -v "$PWD":/src -v "$PWD/out":/out debian:sid sh /src/tools/crossbuild2.sh
@@ -39,7 +53,8 @@ ssh furios@<phone> '
   sudo install -m644 /tmp/org.furimodem.sdr.policy /usr/share/polkit-1/actions/'
 
 # 3. The SDR-mode image, patched from YOUR stock image (no firmware is distributed).
-#    Dump the stock image from the phone and check its sha256 first.
+#    Do this BEFORE writing anything: stock-modem.img is the only way back. Keep a copy off the
+#    phone too. Dump it and check its sha256 first.
 ssh furios@<phone> 'sudo head -c 63018064 /dev/disk/by-partlabel/md1img_a' > stock-modem.img
 sha256sum stock-modem.img          # must be 22c1909dbf9f0455c1a93f8a8e0a141245cc9b2d979c44d0c8da75f5a3424896
 python3 tools/make-sdr-image.py stock-modem.img      # -> modem-sdr-8bit.img (5a625327...)
@@ -57,6 +72,19 @@ sudo sdr-load --deactivate                              # stops the sweep
 sudo sdr-load --image /home/furios/modem-E6.img         # stock image again
 sudo systemctl reboot                                   # the bootloader reads it
 ```
+
+### What success looks like
+
+- `sudo sdr-load --status` reports the `sdr-8bit` image, the mode as active and a `next` line that
+  does not ask for another reboot; the modem is `ready` again.
+- With the sweep running, `fmiq-app --headless 60 --source soapy --out /tmp/demo.ppm` prints
+  `variety=yes`: every waterfall row is different, so real I/Q is moving through the ring.
+- The window (`fmiq-app`) paints a waterfall that moves while the phone sweeps.
+
+If it does not work: code 5/13 from `--image` means the partition does not hold the image the tool
+knows (check the stock sha256 and regenerate); code 8 means the modem has not finished entering the
+mode (wait and retry; the tool polls up to 20 s); `md1` in `exception` is recovered by writing the
+stock image again and rebooting. Never interrupt `AT+COPS=?`.
 
 `sdr-load --image` writes the partition, verifies the read-back and leaves
 `pending=reboot-to-enter`; the loader only reads it at boot, so **reboot before `--resume`**
@@ -88,7 +116,7 @@ Do not interrupt `AT+COPS=?`: an interrupted scan leaves the modem in `exception
 be recovered by flashing the image again and rebooting.
 
 The same sequence, from phosh: `furimodem-sdr` (see `gui/README.md`) shows the status and launches
-`sdr-load` as a subprocess to load, activate, stop and restore factory settings. The operations
+`sdr-load` as a subprocess to load, activate, stop and restore (leave SDR mode). The operations
 that need root go through `pkexec`, so the desktop asks for authorisation in its own dialogue;
 without pkexec, or if the dialogue is cancelled, the window shows the exact command with a button
 to copy it. The window is dark on its own, whatever the desktop theme is.
@@ -145,7 +173,8 @@ Other limits:
   (`sdr-8bit`) the modem stays in service and the scan is what produces the captures. In both
   cases `--deactivate` stops the capture and `--image <stock>` returns the phone to stock.
 
-The image and its patch are described in [`docs/SDR-IMAGE.md`](docs/SDR-IMAGE.md).
+The image and its patch are described in [`docs/SDR-IMAGE.md`](docs/SDR-IMAGE.md)
+([castellano](docs/SDR-IMAGE.es.md)).
 
 ## Using each tool
 
@@ -156,7 +185,7 @@ fmiq-app --headless 60 --source soapy --out /tmp/demo.ppm   # no window, device 
 fmiq-app --headless 12 --fft 2048 --source file --file dump.bin --check-bin 1280
 fmiq-app --gpu-test 120 --fft 512 --size 480x1025 --source soapy --out frame.ppm
 
-# GTK3 window for SDR mode: status, load, activation and factory restore
+# GTK3 window for SDR mode: status, load, activation and restore (leave SDR mode)
 furimodem-sdr
 
 # dump the ring to a file and open it later on the laptop

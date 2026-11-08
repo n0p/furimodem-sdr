@@ -1,5 +1,7 @@
 # furimodem IQ — modo SDR sobre el módem del teléfono
 
+[English](README.md)
+
 Convierte el módem del FuriPhone en un **receptor IQ** sin necesidad de célula: el firmware se
 parchea **en binario** sobre la imagen del módem, se carga con una herramienta propia que sabe
 revertirlo, y los datos se leen por SoapySDR desde una app con waterfall.
@@ -16,11 +18,23 @@ revertirlo, y los datos se leen por SoapySDR desde una app con waterfall.
 | `tools/test-iq5file.sh` | ciclo completo de prueba en local: 5 bits, 8 bits, volcado ambiguo y CS16 |
 | `tools/crossbuild2.sh` | compilación cruzada reproducible del paquete entero (base **Debian sid**, la del teléfono) |
 | `tools/make-sdr-image.py` | construye la imagen del modo SDR desde **tu** imagen de stock; no se distribuye firmware |
-| `docs/SDR-IMAGE.md` | la imagen: sha256 de stock, el parche, carga, activación y vuelta atrás |
+| `docs/SDR-IMAGE.es.md` | la imagen: sha256 de stock, el parche, carga, activación y vuelta atrás |
 
 ## Puesta en marcha
 
 Todo se compila en el portátil: el teléfono no tiene cmake.
+
+### Qué necesitas
+
+- **Teléfono**: un Furi Labs FLX1 con FuriOS (Debian sid/aarch64) y el **firmware E6 del módem**,
+  SSH activado y acceso como `furios`, `sudo` y **ofono en marcha** (el barrido se dispara por
+  `busctl`/`org.ofono`). Otra versión de firmware la rechaza la comprobación de imagen.
+- **Portátil**: `docker` (la compilación cruzada descarga `debian:sid`), `python3`, `sha256sum`,
+  `ssh`/`scp` y ~1 GB libre para la compilación y las imágenes.
+- **SoapySDR en el teléfono** (`SoapySDRUtil --info` debe funcionar); el módulo se instala en
+  `/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8/` (ajusta la ruta si tu sistema usa otra).
+- **Una imagen de stock del módem**: se vuelca de tu propio teléfono en el paso 3, antes de
+  escribir nada. Es tu camino de vuelta. Este repositorio no distribuye firmware.
 
 ```sh
 # 1. compilación cruzada del paquete para el teléfono (módulo, app, ventana, cargador y anillo)
@@ -39,6 +53,8 @@ ssh furios@<movil> '
   sudo install -m644 /tmp/org.furimodem.sdr.policy /usr/share/polkit-1/actions/'
 
 # 3. imagen del modo SDR, parcheada desde TU imagen de stock (no se distribuye firmware)
+#    Hazlo ANTES de escribir nada: stock-modem.img es el único camino de vuelta. Guarda también
+#    una copia fuera del teléfono.
 ssh furios@<movil> 'sudo head -c 63018064 /dev/disk/by-partlabel/md1img_a' > stock-modem.img
 sha256sum stock-modem.img          # debe ser 22c1909dbf9f0455c1a93f8a8e0a141245cc9b2d979c44d0c8da75f5a3424896
 python3 tools/make-sdr-image.py stock-modem.img      # -> modem-sdr-8bit.img (5a625327...)
@@ -56,6 +72,20 @@ sudo sdr-load --deactivate                              # para el barrido
 sudo sdr-load --image /home/furios/modem-E6.img         # imagen de stock otra vez
 sudo systemctl reboot                                   # el bootloader la lee al arrancar
 ```
+
+### Qué debe salir
+
+- `sudo sdr-load --status` muestra la imagen `sdr-8bit`, el modo activo y una línea `next` que no
+  pide otro reinicio; el módem vuelve a estar `ready`.
+- Con el barrido en marcha, `fmiq-app --headless 60 --source soapy --out /tmp/demo.ppm` imprime
+  `variety=yes`: cada fila del waterfall es distinta, así que hay I/Q real moviéndose por el anillo.
+- La ventana (`fmiq-app`) pinta un waterfall que se mueve mientras el teléfono barre.
+
+Si no funciona: los códigos 5/13 de `--image` significan que la partición no tiene la imagen que la
+herramienta conoce (comprueba el sha256 de stock y vuelve a generarla); el código 8 significa que el
+módem aún no ha terminado de entrar en el modo (espera y reintenta; la herramienta sondea hasta 20
+s); un `md1` en `exception` se recupera escribiendo otra vez la imagen de stock y reiniciando. No
+interrumpas `AT+COPS=?`.
 
 `sdr-load --image` escribe la partición, verifica la relectura y deja `pending=reboot-to-enter`; el
 cargador solo la lee al arrancar, así que **reinicia antes de `--resume`** (`--reboot` hace que lo
@@ -87,7 +117,7 @@ No interrumpas `AT+COPS=?`: un barrido cortado deja el módem en `exception` y h
 recuperarlo reflasheando la imagen y reiniciando.
 
 La misma secuencia, desde phosh: `furimodem-sdr` (ver `gui/README.md`) muestra el estado y lanza
-`sdr-load` como subproceso para cargar, activar, detener y volver a fábrica. Las operaciones que
+`sdr-load` como subproceso para cargar, activar, detener y restaurar (salir del modo SDR). Las operaciones que
 necesitan root pasan por `pkexec`, de modo que el escritorio pide autorización en su propio
 diálogo; sin pkexec, o si se cancela el diálogo, la ventana enseña la orden exacta con un botón
 para copiarla. La ventana es oscura por sí misma, sea cual sea el tema del escritorio.
@@ -144,7 +174,8 @@ Otros límites:
   barrido** (`sdr-8bit`) el módem sigue en servicio y el barrido es lo que produce las capturas. En
   ambos casos `--deactivate` para la captura y `--image <stock>` devuelve el teléfono a stock.
 
-La imagen y su parche están descritos en [`docs/SDR-IMAGE.md`](docs/SDR-IMAGE.md).
+La imagen y su parche están descritos en [`docs/SDR-IMAGE.es.md`](docs/SDR-IMAGE.es.md)
+([English](docs/SDR-IMAGE.md)).
 
 ## Uso de cada herramienta
 
@@ -155,7 +186,7 @@ fmiq-app --headless 60 --source soapy --out /tmp/demo.ppm   # sin ventana, fuent
 fmiq-app --headless 12 --fft 2048 --source file --file volcado.bin --check-bin 1280
 fmiq-app --gpu-test 120 --fft 512 --size 480x1025 --source soapy --out frame.ppm
 
-# ventana GTK3 del modo SDR: estado, carga, activación y vuelta a fábrica
+# ventana GTK3 del modo SDR: estado, carga, activación y restauración (salir del modo SDR)
 furimodem-sdr
 
 # volcar el anillo a un fichero y abrirlo luego en el portátil
@@ -180,7 +211,13 @@ tools/test-iq5file.sh                  # 5 bits, 8 bits, volcado ambiguo y CS16,
 No se distribuye ninguna imagen de firmware: `tools/make-sdr-image.py` aplica un parche de 1.694
 bytes sobre la imagen de stock (sha256 `22c1909d…`) en tu máquina y comprueba que el resultado es la
 imagen `sdr-8bit` (`5a625327…`). No se escribe nada hasta que ambos hashes coinciden; detalle en
-`docs/SDR-IMAGE.md`.
+`docs/SDR-IMAGE.es.md`.
+
+## Cómo se desarrolló
+
+El mecanismo se encontró probando cerca de **200 imágenes de firmware modificadas**; el resultado se
+entrega como [`tools/make-sdr-image.py`](tools/make-sdr-image.py), un parche binario de 1,7 kB que se
+aplica a la imagen de stock del usuario, nunca como una imagen de firmware redistribuida.
 
 ## Licencia
 

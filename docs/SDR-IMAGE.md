@@ -4,6 +4,8 @@ This repository does **not** distribute a modem firmware image: the receiver nee
 copy of the image your phone already has, so the patch is applied on your machine and both
 ends are verified by sha256. `tools/make-sdr-image.py` does exactly that.
 
+[Versión en castellano](SDR-IMAGE.es.md)
+
 ## What you need
 
 The stock modem image of the FLX1, E6 build:
